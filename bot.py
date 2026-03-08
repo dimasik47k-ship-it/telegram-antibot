@@ -11,10 +11,12 @@ import random
 import time
 import json
 import hashlib
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass, asdict
 from collections import defaultdict
+from aiohttp import web
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
 from telegram.ext import (
@@ -1208,10 +1210,95 @@ class AntiBot:
         
         logger.info("Бот запущен!")
         
-        # Запускаем polling
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Запускаем polling в отдельном потоке
+        asyncio.create_task(application.initialize())
+        asyncio.create_task(application.start())
+        asyncio.create_task(application.updater.start_polling(allowed_updates=Update.ALL_TYPES))
+
+
+async def health_check(request):
+    """HTTP endpoint для Render"""
+    uptime = int(time.time() - start_time) if 'start_time' in globals() else 0
+    hours = uptime // 3600
+    minutes = (uptime % 3600) // 60
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Telegram Anti-Bot</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }}
+            .container {{
+                text-align: center;
+                background: rgba(255,255,255,0.1);
+                padding: 40px;
+                border-radius: 20px;
+                backdrop-filter: blur(10px);
+            }}
+            h1 {{ font-size: 48px; margin: 0; }}
+            p {{ font-size: 20px; margin: 10px 0; }}
+            .status {{ color: #4ade80; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🤖 Telegram Anti-Bot</h1>
+            <p class="status">✅ Работает</p>
+            <p>⏱️ Время работы: {hours}ч {minutes}м</p>
+            <p>🛡️ Защита группы активна</p>
+        </div>
+    </body>
+    </html>
+    """
+    return web.Response(text=html, content_type='text/html; charset=utf-8')
+
+
+async def start_web_server():
+    """Запуск веб-сервера для Render"""
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    app.router.add_get('/health', health_check)
+    
+    port = int(os.environ.get('PORT', 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logger.info(f"🌐 HTTP сервер запущен на порту {port}")
+    
+    return runner
+
+
+async def main():
+    """Главная функция"""
+    global start_time
+    start_time = time.time()
+    
+    # Запускаем веб-сервер
+    runner = await start_web_server()
+    
+    # Запускаем бота
+    bot = AntiBot()
+    bot.run()
+    
+    # Держим программу запущенной
+    try:
+        await asyncio.Event().wait()
+    except KeyboardInterrupt:
+        logger.info("Остановка бота...")
+        await runner.cleanup()
 
 
 if __name__ == '__main__':
-    bot = AntiBot()
-    bot.run()
+    asyncio.run(main())
