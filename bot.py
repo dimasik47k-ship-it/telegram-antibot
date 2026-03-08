@@ -427,7 +427,6 @@ class AntiBot:
                     user_id,
                     permissions=ChatPermissions(
                         can_send_messages=False,
-                        can_send_media_messages=False,
                         can_send_polls=False,
                         can_send_other_messages=False,
                         can_add_web_page_previews=False,
@@ -594,7 +593,6 @@ class AntiBot:
                     user_id,
                     permissions=ChatPermissions(
                         can_send_messages=True,
-                        can_send_media_messages=True,
                         can_send_polls=True,
                         can_send_other_messages=True,
                         can_add_web_page_previews=True,
@@ -844,25 +842,40 @@ class AntiBot:
         if not await self._check_admin(update, context):
             return
         
-        if not context.args:
-            await update.message.reply_text("❌ Использование: /ban @username")
-            return
-        
-        # Получаем пользователя
-        target_username = context.args[0].lstrip('@')
         chat_id = update.effective_chat.id
         
+        # Проверяем, есть ли reply на сообщение
+        if update.message.reply_to_message:
+            target_user = update.message.reply_to_message.from_user
+            target_user_id = target_user.id
+            target_username = target_user.username or target_user.first_name
+        elif context.args:
+            # Пробуем получить ID из аргумента
+            try:
+                target_user_id = int(context.args[0])
+                target_username = f"ID {target_user_id}"
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ Использование:\n"
+                    "• /ban (ответом на сообщение)\n"
+                    "• /ban [user_id]"
+                )
+                return
+        else:
+            await update.message.reply_text(
+                "❌ Использование:\n"
+                "• /ban (ответом на сообщение)\n"
+                "• /ban [user_id]"
+            )
+            return
+        
         try:
-            # Ищем пользователя в чате
-            chat_member = await context.bot.get_chat_member(chat_id, target_username)
-            target_user_id = chat_member.user.id
-            
             # Баним
             await context.bot.ban_chat_member(chat_id, target_user_id)
             self.banned_users.add(target_user_id)
             self.stats['bans'] += 1
             
-            await update.message.reply_text(f"✅ @{target_username} забанен!")
+            await update.message.reply_text(f"✅ {target_username} забанен!")
         except Exception as e:
             logger.error(f"Ошибка бана: {e}")
             await update.message.reply_text(f"❌ Ошибка: {e}")
@@ -872,22 +885,39 @@ class AntiBot:
         if not await self._check_admin(update, context):
             return
         
-        if not context.args:
-            await update.message.reply_text("❌ Использование: /unban @username")
-            return
-        
-        target_username = context.args[0].lstrip('@')
         chat_id = update.effective_chat.id
         
+        # Проверяем, есть ли reply на сообщение
+        if update.message.reply_to_message:
+            target_user = update.message.reply_to_message.from_user
+            target_user_id = target_user.id
+            target_username = target_user.username or target_user.first_name
+        elif context.args:
+            # Пробуем получить ID из аргумента
+            try:
+                target_user_id = int(context.args[0])
+                target_username = f"ID {target_user_id}"
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ Использование:\n"
+                    "• /unban (ответом на сообщение)\n"
+                    "• /unban [user_id]"
+                )
+                return
+        else:
+            await update.message.reply_text(
+                "❌ Использование:\n"
+                "• /unban (ответом на сообщение)\n"
+                "• /unban [user_id]"
+            )
+            return
+        
         try:
-            chat_member = await context.bot.get_chat_member(chat_id, target_username)
-            target_user_id = chat_member.user.id
-            
             await context.bot.unban_chat_member(chat_id, target_user_id)
             if target_user_id in self.banned_users:
                 self.banned_users.remove(target_user_id)
             
-            await update.message.reply_text(f"✅ @{target_username} разбанен!")
+            await update.message.reply_text(f"✅ {target_username} разбанен!")
         except Exception as e:
             logger.error(f"Ошибка разбана: {e}")
             await update.message.reply_text(f"❌ Ошибка: {e}")
@@ -897,22 +927,39 @@ class AntiBot:
         if not await self._check_admin(update, context):
             return
         
-        if not context.args:
-            await update.message.reply_text("❌ Использование: /kick @username")
-            return
-        
-        target_username = context.args[0].lstrip('@')
         chat_id = update.effective_chat.id
         
+        # Проверяем, есть ли reply на сообщение
+        if update.message.reply_to_message:
+            target_user = update.message.reply_to_message.from_user
+            target_user_id = target_user.id
+            target_username = target_user.username or target_user.first_name
+        elif context.args:
+            # Пробуем получить ID из аргумента
+            try:
+                target_user_id = int(context.args[0])
+                target_username = f"ID {target_user_id}"
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ Использование:\n"
+                    "• /kick (ответом на сообщение)\n"
+                    "• /kick [user_id]"
+                )
+                return
+        else:
+            await update.message.reply_text(
+                "❌ Использование:\n"
+                "• /kick (ответом на сообщение)\n"
+                "• /kick [user_id]"
+            )
+            return
+        
         try:
-            chat_member = await context.bot.get_chat_member(chat_id, target_username)
-            target_user_id = chat_member.user.id
-            
             await context.bot.ban_chat_member(chat_id, target_user_id)
             await context.bot.unban_chat_member(chat_id, target_user_id)
             self.stats['kicks'] += 1
             
-            await update.message.reply_text(f"✅ @{target_username} кикнут!")
+            await update.message.reply_text(f"✅ {target_username} кикнут!")
         except Exception as e:
             logger.error(f"Ошибка кика: {e}")
             await update.message.reply_text(f"❌ Ошибка: {e}")
@@ -971,7 +1018,6 @@ class AntiBot:
                 target_user_id,
                 permissions=ChatPermissions(
                     can_send_messages=True,
-                    can_send_media_messages=True,
                     can_send_polls=True,
                     can_send_other_messages=True,
                     can_add_web_page_previews=True
