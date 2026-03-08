@@ -12,6 +12,7 @@ import time
 import json
 import hashlib
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass, asdict
@@ -27,6 +28,14 @@ from telegram.ext import (
     MessageHandler,
     ContextTypes,
     filters
+)
+
+# Импорт новых функций
+from features import (
+    AntiSpam, ReputationSystem, GroupStats, WelcomeRules,
+    feedback_command, reputation_command, top_command,
+    rules_command, setrules_command, support_command,
+    SUPPORT_BOT
 )
 
 # Настройка логирования
@@ -266,6 +275,12 @@ class AntiBot:
         self.stats = defaultdict(int)
         self.group_settings: Dict[int, dict] = {}
         
+        # Новые системы
+        self.anti_spam = AntiSpam()
+        self.reputation_system = ReputationSystem()
+        self.group_stats = GroupStats()
+        self.welcome_rules = WelcomeRules()
+        
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /start"""
         self.stats['start_commands'] += 1
@@ -299,7 +314,7 @@ class AntiBot:
         """Команда /help"""
         self.stats['help_commands'] += 1
         
-        help_text = """
+        help_text = f"""
 📚 Помощь по боту
 
 🔧 Команды для всех:
@@ -308,18 +323,23 @@ class AntiBot:
 /verify - Пройти проверку вручную
 /status - Проверить статус верификации
 /stats - Статистика бота
+/reputation - Твоя репутация
+/top - Топ активных пользователей
+/rules - Правила группы
+/feedback - Отправить отзыв
+/support - Связь с поддержкой
 
 👑 Команды для администраторов:
 /settings - Настройки группы
-/ban @username - Забанить пользователя
-/unban @username - Разбанить пользователя
-/kick @username - Кикнуть пользователя
-/mute @username - Замутить пользователя
-/unmute @username - Размутить пользователя
-/warn @username - Предупредить пользователя
-/resetwarns @username - Сбросить предупреждения
-/whitelist @username - Добавить в белый список
-/blacklist @username - Добавить в чёрный список
+/ban - Забанить (reply или ID)
+/unban - Разбанить (reply или ID)
+/kick - Кикнуть (reply или ID)
+/mute - Замутить пользователя
+/unmute - Размутить пользователя
+/warn - Предупредить пользователя
+/whitelist - Добавить в белый список
+/blacklist - Добавить в чёрный список
+/setrules - Установить правила группы
 
 📊 Типы проверок:
 1️⃣ Эмодзи - найди правильный эмодзи
@@ -333,11 +353,13 @@ class AntiBot:
 9️⃣ Счёт - посчитай эмодзи
 🔟 Лишнее - найди лишний элемент
 
-⚙️ Настройки:
-• Время на проверку: 5 минут
-• Количество попыток: 5
-• Автоматическое удаление сообщений
-• Уведомления в личку
+🛡️ Защита:
+• Анти-спам и анти-флуд
+• Автоудаление ссылок и рекламы
+• Система репутации
+• Автобан за 3 предупреждения
+
+💬 Поддержка: {SUPPORT_BOT}
 """
         await update.message.reply_text(help_text)
     
@@ -1180,6 +1202,7 @@ class AntiBot:
         
         user_id = update.message.from_user.id
         chat_id = update.message.chat_id
+        text = update.message.text or ""
         
         # Проверяем, находится ли пользователь на проверке
         if user_id in self.verifications:
@@ -1202,6 +1225,40 @@ class AntiBot:
                 await reminder.delete()
             except Exception as e:
                 logger.error(f"Ошибка обработки сообщения от непроверенного: {e}")
+            return
+        
+        # Если пользователь верифицирован, проверяем на спам и собираем статистику
+        if user_id in self.verified_users:
+            # Статистика
+            self.group_stats.add_message(user_id)
+            
+            # Проверка на спам
+            if self.anti_spam.check_spam(user_id, text):
+                try:
+                    # Удаляем спам
+                    await update.message.delete()
+                    
+                    # Предупреждение
+                    self.reputation_system.add_warning(user_id)
+                    warnings = self.reputation_system.get_warnings(user_id)
+                    
+                    if warnings >= 3:
+                        # Бан за 3 предупреждения
+                        await context.bot.ban_chat_member(chat_id, user_id)
+                        self.banned_users.add(user_id)
+                        await update.message.reply_text(
+                            f"🚫 Пользователь забанен за спам (3 предупреждения)"
+                        )
+                    else:
+                        # Просто предупреждение
+                        warning_msg = await update.message.reply_text(
+                            f"⚠️ Предупреждение за спам/флуд!\n"
+                            f"Предупреждений: {warnings}/3"
+                        )
+                        await asyncio.sleep(10)
+                        await warning_msg.delete()
+                except Exception as e:
+                    logger.error(f"Ошибка обработки спама: {e}")
     
     async def run_async(self):
         """Асинхронный запуск бота"""
@@ -1225,6 +1282,14 @@ class AntiBot:
         application.add_handler(CommandHandler("settings", self.settings_command))
         application.add_handler(CommandHandler("whitelist", self.whitelist_command))
         application.add_handler(CommandHandler("blacklist", self.blacklist_command))
+        
+        # Новые команды
+        application.add_handler(CommandHandler("feedback", feedback_command))
+        application.add_handler(CommandHandler("reputation", reputation_command))
+        application.add_handler(CommandHandler("top", top_command))
+        application.add_handler(CommandHandler("rules", rules_command))
+        application.add_handler(CommandHandler("setrules", setrules_command))
+        application.add_handler(CommandHandler("support", support_command))
         
         # Обработчик новых участников
         application.add_handler(MessageHandler(
@@ -1253,6 +1318,11 @@ class AntiBot:
         
         # Сохраняем время старта
         self.start_time = time.time()
+        
+        # Сохраняем системы в bot_data для доступа из команд
+        application.bot_data['reputation_system'] = self.reputation_system
+        application.bot_data['group_stats'] = self.group_stats
+        application.bot_data['welcome_rules'] = self.welcome_rules
         
         logger.info("Бот запущен!")
         
