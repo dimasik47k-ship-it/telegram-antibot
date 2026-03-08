@@ -1267,6 +1267,11 @@ class AntiBot:
         # Создаём приложение
         application = Application.builder().token(BOT_TOKEN).build()
         
+        # Сохраняем системы в bot_data для доступа из команд (ДО регистрации обработчиков!)
+        application.bot_data['reputation_system'] = self.reputation_system
+        application.bot_data['group_stats'] = self.group_stats
+        application.bot_data['welcome_rules'] = self.welcome_rules
+        
         # Регистрируем обработчики команд
         application.add_handler(CommandHandler("start", self.start_command))
         application.add_handler(CommandHandler("help", self.help_command))
@@ -1318,11 +1323,6 @@ class AntiBot:
         
         # Сохраняем время старта
         self.start_time = time.time()
-        
-        # Сохраняем системы в bot_data для доступа из команд
-        application.bot_data['reputation_system'] = self.reputation_system
-        application.bot_data['group_stats'] = self.group_stats
-        application.bot_data['welcome_rules'] = self.welcome_rules
         
         logger.info("Бот запущен!")
         

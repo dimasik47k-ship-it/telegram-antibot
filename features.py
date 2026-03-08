@@ -208,7 +208,7 @@ async def reputation_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     
     # Получаем репутацию из контекста бота
-    if hasattr(context.bot_data, 'reputation_system'):
+    if 'reputation_system' in context.bot_data:
         rep_system = context.bot_data['reputation_system']
         reputation = rep_system.get_reputation(user_id)
         warnings = rep_system.get_warnings(user_id)
@@ -225,7 +225,7 @@ async def reputation_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /top - топ активных пользователей"""
-    if hasattr(context.bot_data, 'group_stats'):
+    if 'group_stats' in context.bot_data:
         stats = context.bot_data['group_stats']
         top_users = stats.get_top_users(10)
         
@@ -247,7 +247,7 @@ async def rules_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда /rules - показать правила"""
     chat_id = update.effective_chat.id
     
-    if hasattr(context.bot_data, 'welcome_rules'):
+    if 'welcome_rules' in context.bot_data:
         rules_system = context.bot_data['welcome_rules']
         rules = rules_system.get_rules(chat_id)
         
@@ -288,7 +288,7 @@ async def setrules_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     rules_text = ' '.join(context.args)
     
-    if not hasattr(context.bot_data, 'welcome_rules'):
+    if 'welcome_rules' not in context.bot_data:
         context.bot_data['welcome_rules'] = WelcomeRules()
     
     context.bot_data['welcome_rules'].set_rules(chat_id, rules_text)
