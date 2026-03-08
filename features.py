@@ -6,6 +6,7 @@
 
 import re
 import time
+import json
 from collections import defaultdict
 from typing import Dict, List, Set
 from telegram import Update
@@ -132,10 +133,36 @@ class WelcomeRules:
     def __init__(self):
         self.rules = {}
         self.welcome_messages = {}
+        self.load_data()
+    
+    def load_data(self):
+        """Загрузить данные из файла"""
+        try:
+            with open('rules_data.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.rules = {int(k): v for k, v in data.get('rules', {}).items()}
+                self.welcome_messages = {int(k): v for k, v in data.get('welcome', {}).items()}
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"Ошибка загрузки правил: {e}")
+    
+    def save_data(self):
+        """Сохранить данные в файл"""
+        try:
+            data = {
+                'rules': {str(k): v for k, v in self.rules.items()},
+                'welcome': {str(k): v for k, v in self.welcome_messages.items()}
+            }
+            with open('rules_data.json', 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения правил: {e}")
     
     def set_rules(self, chat_id: int, rules: str):
         """Установить правила группы"""
         self.rules[chat_id] = rules
+        self.save_data()
     
     def get_rules(self, chat_id: int) -> str:
         """Получить правила группы"""
@@ -144,6 +171,7 @@ class WelcomeRules:
     def set_welcome(self, chat_id: int, message: str):
         """Установить приветственное сообщение"""
         self.welcome_messages[chat_id] = message
+        self.save_data()
     
     def get_welcome(self, chat_id: int, username: str) -> str:
         """Получить приветственное сообщение"""
