@@ -1157,8 +1157,8 @@ class AntiBot:
             except Exception as e:
                 logger.error(f"Ошибка обработки сообщения от непроверенного: {e}")
     
-    def run(self):
-        """Запуск бота"""
+    async def run_async(self):
+        """Асинхронный запуск бота"""
         logger.info("Запуск бота...")
         
         # Создаём приложение
@@ -1210,10 +1210,10 @@ class AntiBot:
         
         logger.info("Бот запущен!")
         
-        # Запускаем polling в отдельном потоке
-        asyncio.create_task(application.initialize())
-        asyncio.create_task(application.start())
-        asyncio.create_task(application.updater.start_polling(allowed_updates=Update.ALL_TYPES))
+        # Инициализируем и запускаем
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
 
 
 async def health_check(request):
@@ -1261,7 +1261,7 @@ async def health_check(request):
     </body>
     </html>
     """
-    return web.Response(text=html, content_type='text/html; charset=utf-8')
+    return web.Response(text=html, content_type='text/html', charset='utf-8')
 
 
 async def start_web_server():
@@ -1290,7 +1290,7 @@ async def main():
     
     # Запускаем бота
     bot = AntiBot()
-    bot.run()
+    await bot.run_async()
     
     # Держим программу запущенной
     try:
